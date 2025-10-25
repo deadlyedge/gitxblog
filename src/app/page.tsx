@@ -1,9 +1,11 @@
-import { Button } from "@/components/ui/button";
+import { Content } from "@/components/content";
+import { Footer } from "@/components/footer";
 
 export default function Home() {
 	return (
 		<div className="">
-			<Button>hello world</Button>
+			<Content />
+			<Footer />
 		</div>
 	)
 }
