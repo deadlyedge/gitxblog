@@ -6,15 +6,18 @@ import { searchPosts } from "@/services/posts"
 import { formatDate } from "@/lib/date"
 
 type SearchPageProps = {
-	searchParams: {
-		q?: string
-		page?: string
-	}
+	searchParams: Promise<Record<string, string | string[] | undefined>>
+}
+
+const getParam = (value: string | string[] | undefined) => {
+	if (Array.isArray(value)) return value[0] ?? null
+	return value ?? null
 }
 
 export default async function SearchPage({ searchParams }: SearchPageProps) {
-	const query = searchParams.q?.trim()
-	const page = Number(searchParams.page ?? "1")
+	const params = await searchParams
+	const query = getParam(params.q)?.trim()
+	const page = Number(getParam(params.page) ?? "1")
 
 	const results = query ? await searchPosts({ query, page }) : null
 

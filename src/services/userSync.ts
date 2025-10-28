@@ -4,6 +4,12 @@ import { eq } from "drizzle-orm"
 import { db } from "@/db/client"
 import { users } from "@/db/schema"
 
+type UserRecord = {
+	id: string
+	email: string
+	role: (typeof users.role.enumValues)[number]
+}
+
 export const ensureUserRecord = async (userId: string) => {
 	const existing = await db
 		.select({
@@ -16,10 +22,11 @@ export const ensureUserRecord = async (userId: string) => {
 		.limit(1)
 
 	if (existing.length > 0) {
-		return existing[0]
+		return existing[0] as UserRecord
 	}
 
-	const clerkUser = await clerkClient.users.getUser(userId)
+	const client = await clerkClient()
+	const clerkUser = await client.users.getUser(userId)
 	const primaryEmail = clerkUser.emailAddresses.find((email) => email.id === clerkUser.primaryEmailAddressId)
 
 	const [record] = await db
@@ -46,5 +53,28 @@ export const ensureUserRecord = async (userId: string) => {
 			role: users.role,
 		})
 
-	return record
+	return record as UserRecord
+}
+
+export const getUserRecord = async (userId: string) => {
+	const existing = await db
+		.select({
+			id: users.id,
+			email: users.email,
+			role: users.role,
+		})
+		.from(users)
+		.where(eq(users.id, userId))
+		.limit(1)
+
+	if (existing.length > 0) {
+		return existing[0] as UserRecord
+	}
+
+	return ensureUserRecord(userId)
+}
+
+export const isUserAdmin = async (userId: string) => {
+	const record = await getUserRecord(userId)
+	return record?.role === "admin"
 }

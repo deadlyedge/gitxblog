@@ -36,20 +36,14 @@ export const fetchRepositorySnapshot = async ({
 	}
 
 	const octokit = getOctokit(token)
-	const ref = await octokit.rest.git.getRef({
+	const branchInfo = await octokit.rest.repos.getBranch({
 		owner,
 		repo,
-		ref: `heads/${branch}`,
+		branch,
 	})
 
-	const commitSha = ref.data.object.sha
-	const commit = await octokit.rest.git.getCommit({
-		owner,
-		repo,
-		commit_sha: commitSha,
-	})
-
-	const treeSha = commit.data.tree.sha
+	const commitSha = branchInfo.data.commit.sha
+	const treeSha = branchInfo.data.commit.commit.tree.sha
 	const tree = await octokit.rest.git.getTree({
 		owner,
 		repo,

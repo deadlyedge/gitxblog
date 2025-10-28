@@ -8,23 +8,29 @@ import { listPublishedPosts } from "@/services/posts"
 import { formatDate } from "@/lib/date"
 
 type PostsPageProps = {
-	searchParams: {
-		page?: string
-		tag?: string
-		category?: string
-	}
+	searchParams: Promise<Record<string, string | string[] | undefined>>
+}
+
+const getParam = (value: string | string[] | undefined) => {
+	if (Array.isArray(value)) return value[0] ?? null
+	return value ?? null
 }
 
 export default async function PostsPage({ searchParams }: PostsPageProps) {
-	const page = Number(searchParams.page ?? "1")
+	const params = await searchParams
+	const pageParam = getParam(params.page)
+	const tagParam = getParam(params.tag)
+	const categoryParam = getParam(params.category)
+
+	const page = Number(pageParam ?? "1")
 	if (Number.isNaN(page) || page < 1) {
 		notFound()
 	}
 
 	const { data, meta } = await listPublishedPosts({
 		page,
-		tag: searchParams.tag ?? null,
-		category: searchParams.category ?? null,
+		tag: tagParam,
+		category: categoryParam,
 	})
 
 	return (
@@ -32,15 +38,15 @@ export default async function PostsPage({ searchParams }: PostsPageProps) {
 			<header className='space-y-2'>
 				<h1 className='text-3xl font-semibold'>全部文章</h1>
 				<p className='text-sm text-muted-foreground'>
-					{searchParams.tag && (
+					{tagParam && (
 						<>
-							標籤 <Badge variant='secondary'>#{searchParams.tag}</Badge>
+							標籤 <Badge variant='secondary'>#{tagParam}</Badge>
 						</>
 					)}
-					{searchParams.category && (
+					{categoryParam && (
 						<>
 							{" "}
-							分類 <Badge variant='outline'>{searchParams.category}</Badge>
+							分類 <Badge variant='outline'>{categoryParam}</Badge>
 						</>
 					)}
 				</p>
