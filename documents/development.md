@@ -24,10 +24,10 @@
    - 主要變量：`DATABASE_URL`, `GITHUB_TOKEN`, `GITHUB_OWNER`, `GITHUB_REPO`, `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `WEBHOOK_SECRET`
 2. **資料庫層**
    - `drizzle.config.ts` + `src/db/schema/*` 定義如下資料表：
-     - `authors`
-     - `posts`（含 `slug`, `title`, `summary`, `content`, `og_image_url`, `published_at`, `tsv`）
-     - `categories`
-     - `tags`
+     - `authors` 默認爲 github username
+     - `posts`（含 `slug`（根據title自動生成）, `title`（即爲.md文件名）, `summary`（在md文檔中搜尋'# summary'）, `content`, `og_image_url`, `published_at`, `tsv`）
+     - `categories` 默認爲 ['github repo name', 'folder name']
+     - `tags` 默認爲 `在md文檔中搜尋 '# tags:[tag1, tag2]'`
      - 關聯表 `postCategories`, `postTags`, `postAttachments`
      - `comments`（`status`, `anti_spam_score`, `rate_limit_bucket`）
      - `users`（Clerk 對應，含角色欄位）
@@ -71,7 +71,7 @@
 
 ### 3. 資料流程 (Data Flow)
 1. **初始啟動**
-   1. 使用者進入 `/setup`
+   1. 使用者進入 `/setup`，未完成setup不允許進入 `/`
    2. 建立 admin (Clerk user id + email) 並指定 GitHub repo
    3. 觸發一次 `syncRepository()`，把 Markdown 寫進 DB
 2. **常態運作**

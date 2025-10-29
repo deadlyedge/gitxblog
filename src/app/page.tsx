@@ -10,7 +10,7 @@ export default async function Home() {
 
 	return (
 		<div className='space-y-12 py-10'>
-			<section className='rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-8 py-12 text-white shadow-lg'>
+			<section className='rounded-3xl bg-linear-to-br from-slate-900 via-slate-800 to-slate-900 px-8 py-12 text-white shadow-lg'>
 				<div className='space-y-4'>
 					<p className='inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs uppercase tracking-wide text-white/80'>
 						GitHub 驅動的現代部落格

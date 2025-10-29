@@ -382,6 +382,7 @@ export const syncRepository = async ({
 
 			let postsArchived = 0
 			if (normalizedPosts.length > 0) {
+				const slugs = normalizedPosts.map((p) => p.slug).filter(Boolean)
 				if (slugs.length > 0) {
 					console.debug('[syncRepository] archiving posts not in', slugs.map((slug) => ({ slug, type: typeof slug })))
 					// execute the update and read rowCount from the result

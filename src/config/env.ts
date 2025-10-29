@@ -27,9 +27,12 @@ const parsed = baseSchema.safeParse({
 })
 
 if (!parsed.success) {
-	const { fieldErrors } = parsed.error.flatten()
-	const combined = Object.entries(fieldErrors)
-		.map(([key, value]) => `${key}: ${value.join(", ")}`)
+	const errors = parsed.error.issues
+	const combined = errors
+		.map((issue) => {
+			const path = issue.path.length ? issue.path.join(".") : "(root)"
+			return `${path}: ${issue.message}`
+		})
 		.join("; ")
 	throw new Error(`Invalid environment variables: ${combined}`)
 }
