@@ -29,9 +29,10 @@ type SyncOptions = {
 	eventId?: string
 }
 
-type TransactionClient = Database
+type TransactionClientFn = Parameters<Database["transaction"]>[0]
+type TransactionClient = TransactionClientFn extends (tx: infer T) => unknown ? T : Database
 
-const upsertAuthors = async (tx: TransactionClient, postsToSync: NormalizedPost[]) => {
+const upsertAuthors = async (tx: TransactionClient, postsToSync: NormalizedPost[]): Promise<Map<string, string>> => {
 	const uniqueAuthors = new Map(
 		postsToSync.map((post) => [
 			post.author.slug,
@@ -69,17 +70,19 @@ const upsertAuthors = async (tx: TransactionClient, postsToSync: NormalizedPost[
 		.from(authors)
 		.where(inArray(authors.slug, values.map((a) => a.slug)))
 
-	return new Map(records.map((record) => [record.slug, record.id]))
+	return new Map(
+		(records as Array<{ id: string; slug: string }>).map((record) => [record.slug, record.id]),
+	)
 }
 
-const upsertTags = async (tx: TransactionClient, items: Array<{ slug: string; label: string }>) => {
+const upsertTags = async (tx: TransactionClient, items: Array<{ slug: string; label: string }>): Promise<Map<string, string>> => {
 	if (items.length === 0) return new Map<string, string>()
 
 	await tx
 		.insert(tags)
 		.values(items)
 		.onConflictDoUpdate({
-			target: table.slug,
+			target: tags.slug,
 			set: {
 				label: sql`excluded.label`,
 				updatedAt: sql`CURRENT_TIMESTAMP`,
@@ -91,10 +94,12 @@ const upsertTags = async (tx: TransactionClient, items: Array<{ slug: string; la
 		.from(tags)
 		.where(inArray(tags.slug, items.map((item) => item.slug)))
 
-	return new Map(rows.map((row) => [row.slug, row.id]))
+	return new Map(
+		(rows as Array<{ id: string; slug: string }>).map((row) => [row.slug, row.id]),
+	)
 }
 
-const upsertCategories = async (tx: TransactionClient, items: Array<{ slug: string; label: string }>) => {
+const upsertCategories = async (tx: TransactionClient, items: Array<{ slug: string; label: string }>): Promise<Map<string, string>> => {
 	if (items.length === 0) return new Map<string, string>()
 
 	await tx
@@ -113,7 +118,9 @@ const upsertCategories = async (tx: TransactionClient, items: Array<{ slug: stri
 		.from(categories)
 		.where(inArray(categories.slug, items.map((item) => item.slug)))
 
-	return new Map(rows.map((row) => [row.slug, row.id]))
+	return new Map(
+		(rows as Array<{ id: string; slug: string }>).map((row) => [row.slug, row.id]),
+	)
 }
 
 const updateSearchVector = async (tx: TransactionClient, postId: string) => {
@@ -228,7 +235,7 @@ export const syncRepository = async ({
 		})
 		.returning({ id: syncLog.id })
 
-	try {
+		try {
 		const result = await db.transaction(async (tx) => {
 			const authorMap = await upsertAuthors(tx, normalizedPosts)
 
@@ -293,18 +300,20 @@ export const syncRepository = async ({
 			let postsArchived = 0
 			if (normalizedPosts.length > 0) {
 				const slugs = normalizedPosts.map((post) => post.slug)
-				if (slugs.length > 0) {
-					const { rowCount } = await tx
-						.update(posts)
-						.set({ status: "archived" })
-						.where(
-							and(
-								eq(posts.source, "github"),
-								notInArray(posts.slug, slugs),
-							),
-						)
-					postsArchived = rowCount ?? 0
-				}
+					if (slugs.length > 0) {
+						// execute the update and read rowCount from the result
+						const res = await tx
+							.update(posts)
+							.set({ status: "archived" })
+							.where(
+								and(
+									eq(posts.source, "github"),
+									notInArray(posts.slug, slugs),
+								),
+							)
+							.execute()
+						postsArchived = (res as unknown as { rowCount?: number })?.rowCount ?? 0
+					}
 			}
 
 			return {

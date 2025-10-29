@@ -1,15 +1,15 @@
-import { auth } from "@clerk/nextjs/server"
-import { NextResponse } from "next/server"
-import { z } from "zod"
+import { auth } from '@clerk/nextjs/server'
+import { NextResponse } from 'next/server'
+import { z } from 'zod'
 
-import { db } from "@/db/client"
-import { comments, posts, users } from "@/db/schema"
-import { ensureUserRecord } from "@/services/userSync"
-import { eq, sql } from "drizzle-orm"
+import { db } from '@/db/client'
+import { comments, posts, users } from '@/db/schema'
+import { ensureUserRecord } from '@/services/userSync'
+import { eq, sql } from 'drizzle-orm'
 
 const updateSchema = z.object({
 	commentId: z.string().uuid(),
-	status: z.enum(["approved", "rejected", "spam"]),
+	status: z.enum(['approved', 'rejected', 'spam']),
 })
 
 const requireAdmin = async (userId: string) => {
@@ -21,20 +21,20 @@ const requireAdmin = async (userId: string) => {
 
 	if (!record) {
 		const ensured = await ensureUserRecord(userId)
-		return ensured.role === "admin"
+		return ensured.role === 'admin'
 	}
 
-	return record.role === "admin"
+	return record.role === 'admin'
 }
 
 export const GET = async () => {
-	const { userId } = auth()
+	const { userId } = await auth()
 	if (!userId) {
-		return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+		return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 	}
 
 	if (!(await requireAdmin(userId))) {
-		return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+		return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 	}
 
 	const pending = await db
@@ -53,7 +53,7 @@ export const GET = async () => {
 		.from(comments)
 		.innerJoin(users, eq(comments.userId, users.id))
 		.innerJoin(posts, eq(comments.postId, posts.id))
-		.where(eq(comments.status, "pending"))
+		.where(eq(comments.status, 'pending'))
 		.orderBy(sql`${comments.createdAt} DESC`)
 		.limit(50)
 
@@ -61,25 +61,28 @@ export const GET = async () => {
 }
 
 export const PATCH = async (request: Request) => {
-	const { userId } = auth()
+	const { userId } = await auth()
 	if (!userId) {
-		return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+		return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 	}
 
 	if (!(await requireAdmin(userId))) {
-		return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+		return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 	}
 
 	let payload: unknown
 	try {
 		payload = await request.json()
 	} catch {
-		return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
+		return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
 	}
 
 	const parsed = updateSchema.safeParse(payload)
 	if (!parsed.success) {
-		return NextResponse.json({ error: parsed.error.flatten().formErrors.join(", ") }, { status: 400 })
+		return NextResponse.json(
+			{ error: parsed.error.flatten().formErrors.join(', ') },
+			{ status: 400 }
+		)
 	}
 
 	const { commentId, status } = parsed.data
@@ -89,7 +92,7 @@ export const PATCH = async (request: Request) => {
 		.set({
 			status,
 			updatedAt: new Date(),
-			publishedAt: status === "approved" ? new Date() : null,
+			publishedAt: status === 'approved' ? new Date() : null,
 		})
 		.where(eq(comments.id, commentId))
 		.returning({
@@ -99,7 +102,7 @@ export const PATCH = async (request: Request) => {
 		})
 
 	if (!updated) {
-		return NextResponse.json({ error: "Comment not found" }, { status: 404 })
+		return NextResponse.json({ error: 'Comment not found' }, { status: 404 })
 	}
 
 	return NextResponse.json({ data: updated })
