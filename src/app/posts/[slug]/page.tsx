@@ -10,15 +10,16 @@ import { markdownToHtml } from "@/lib/markdown"
 import { getPostBySlug, listRelatedPosts } from "@/services/posts"
 
 type PostPageProps = {
-	params: {
+	params: Promise<{
 		slug: string
-	}
+	}>
 }
 
 export const revalidate = 300
 
 export async function generateMetadata({ params }: PostPageProps): Promise<Metadata> {
-	const post = await getPostBySlug(params.slug)
+	const { slug } = await params
+	const post = await getPostBySlug(slug)
 	if (!post) {
 		return {
 			title: "文章不存在 - GitxBlog",
@@ -39,13 +40,18 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
 }
 
 export default async function PostPage({ params }: PostPageProps) {
-	const post = await getPostBySlug(params.slug)
+	const { slug } = await params
+	if (!slug) {
+		notFound()
+	}
+
+	const post = await getPostBySlug(slug)
 	if (!post) {
 		notFound()
 	}
 
 	const html = await markdownToHtml(post.content ?? "")
-	const related = await listRelatedPosts(params.slug)
+	const related = await listRelatedPosts(slug)
 
 	return (
 		<article className='space-y-10 py-8'>

@@ -270,7 +270,7 @@ export const syncRepository = async ({
 		branch: resolvedBranch,
 		token: resolvedToken,
 	})
-	const normalizedPosts = snapshot.files.map(parseMarkdownFile)
+	const normalizedPosts = snapshot.files.map((file) => parseMarkdownFile(file, { owner: snapshot.owner, repo: snapshot.repo }))
 
 	const [logRecord] = await db
 		.insert(syncLog)

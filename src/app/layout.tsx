@@ -33,7 +33,7 @@ export default function RootLayout({
 	return (
 		<html lang='zh-Hant'>
 			<ClerkProvider>
-				<body className={`${wenkai.className} antialiased`}>
+				<body className={`${wenkai.className} antialiased overflow-x-hidden`}>
 					<main className='mx-auto w-full md:w-3/4'>
 						<EnsureClerkUser />
 						<Navbar />

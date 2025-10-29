@@ -9,10 +9,10 @@ export const toSlug = (value: string) =>
 
 export const ensureSlug = (value: string, fallback: string) => {
 	const primary = toSlug(value)
-	if (primary.length > 0) return primary
+	if (primary.length >= 3) return primary
 
 	const secondary = toSlug(fallback)
-	if (secondary.length > 0) return secondary
+	if (secondary.length >= 3) return secondary
 
 	const hash = Buffer.from(fallback, "utf-8").toString("hex").slice(0, 12)
 	return `post-${hash}`
