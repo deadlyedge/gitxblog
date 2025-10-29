@@ -34,6 +34,18 @@ type TransactionClient = TransactionClientFn extends (tx: infer T) => unknown
 	? T
 	: Database
 
+const normalizeTimestamp = (value: unknown) => {
+	if (value === null || value === undefined) return null
+	if (value instanceof Date) {
+		return Number.isNaN(value.getTime()) ? null : value
+	}
+	if (typeof value === 'string' || typeof value === 'number') {
+		const parsed = new Date(value)
+		return Number.isNaN(parsed.getTime()) ? null : parsed
+	}
+	return null
+}
+
 const upsertAuthors = async (
 	tx: TransactionClient,
 	postsToSync: NormalizedPost[]
@@ -305,39 +317,61 @@ export const syncRepository = async ({
 				const authorId = authorMap.get(post.author.slug)
 				if (!authorId) continue
 
-				const [upserted] = await tx
-					.insert(posts)
-					.values({
-						authorId,
-						slug: post.slug,
-						title: post.title,
-						summary: post.summary,
-						content: post.content,
-						rawFrontmatter: post.rawFrontmatter,
-						ogImageUrl: post.ogImageUrl,
-						status: post.status,
-						source: 'github',
-						sourcePath: post.sourcePath,
-						sourceSha: post.sourceSha,
-						publishedAt: post.publishedAt,
-					})
-					.onConflictDoUpdate({
-						target: posts.slug,
-						set: {
+				const publishedAt = normalizeTimestamp(post.publishedAt)
+
+				console.debug('[syncRepository] upserting post', {
+					slug: post.slug,
+					sourcePath: post.sourcePath,
+					publishedAtOriginal: post.publishedAt,
+					publishedAt,
+					publishedAtType: typeof post.publishedAt,
+				})
+
+				let upserted
+				try {
+					;[upserted] = await tx
+						.insert(posts)
+						.values({
 							authorId,
+							slug: post.slug,
 							title: post.title,
 							summary: post.summary,
 							content: post.content,
-							rawFrontmatter: post.rawFrontmatter,
+							rawFrontmatter: JSON.parse(JSON.stringify(post.rawFrontmatter ?? {})),
 							ogImageUrl: post.ogImageUrl,
 							status: post.status,
+							source: 'github',
 							sourcePath: post.sourcePath,
 							sourceSha: post.sourceSha,
-							publishedAt: post.publishedAt,
-							updatedAt: sql`CURRENT_TIMESTAMP`,
-						},
+							publishedAt,
+						})
+						.onConflictDoUpdate({
+							target: posts.slug,
+							set: {
+								authorId,
+								title: post.title,
+								summary: post.summary,
+								content: post.content,
+								rawFrontmatter: JSON.parse(JSON.stringify(post.rawFrontmatter ?? {})),
+								ogImageUrl: post.ogImageUrl,
+								status: post.status,
+								sourcePath: post.sourcePath,
+								sourceSha: post.sourceSha,
+								publishedAt,
+								updatedAt: sql`CURRENT_TIMESTAMP`,
+							},
+						})
+						.returning({ id: posts.id })
+				} catch (error) {
+					console.error('[syncRepository] Failed to upsert post', {
+						slug: post.slug,
+						path: post.sourcePath,
+						publishedAt: post.publishedAt,
+						rawFrontmatter: post.rawFrontmatter,
+						error,
 					})
-					.returning({ id: posts.id })
+					throw error
+				}
 
 				if (!upserted) continue
 
@@ -348,18 +382,25 @@ export const syncRepository = async ({
 
 			let postsArchived = 0
 			if (normalizedPosts.length > 0) {
-				const slugs = normalizedPosts.map((post) => post.slug)
 				if (slugs.length > 0) {
+					console.debug('[syncRepository] archiving posts not in', slugs.map((slug) => ({ slug, type: typeof slug })))
 					// execute the update and read rowCount from the result
-					const res = await tx
-						.update(posts)
-						.set({ status: 'archived' })
-						.where(
-							and(eq(posts.source, 'github'), notInArray(posts.slug, slugs))
-						)
-						.execute()
-					postsArchived =
-						(res as unknown as { rowCount?: number })?.rowCount ?? 0
+					try {
+						const res = await tx
+							.update(posts)
+							.set({ status: 'archived' })
+							.where(
+								and(eq(posts.source, 'github'), notInArray(posts.slug, slugs))
+							)
+							.execute()
+						postsArchived =
+							(res as unknown as { rowCount?: number })?.rowCount ?? 0
+					} catch (archiveError) {
+						console.error('[syncRepository] Failed to archive stale posts', {
+							slugs,
+							archiveError,
+						})
+					}
 				}
 			}
 
@@ -390,6 +431,7 @@ export const syncRepository = async ({
 
 		return result
 	} catch (error) {
+		console.error('[syncRepository] sync failed', error)
 		await db
 			.update(syncLog)
 			.set({
