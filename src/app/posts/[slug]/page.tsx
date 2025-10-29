@@ -59,6 +59,7 @@ export default async function PostPage({ params }: PostPageProps) {
 				<div className='space-y-2'>
 					<p className='text-xs uppercase tracking-wider text-muted-foreground'>
 						{formatDate(post.publishedAt ?? post.createdAt)}
+						{post.author?.name ? ` · ${post.author.name}` : null}
 					</p>
 					<h1 className='text-3xl font-semibold md:text-4xl'>{post.title}</h1>
 					<p className='text-sm text-muted-foreground'>{post.summary}</p>

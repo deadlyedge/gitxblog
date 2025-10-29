@@ -1,16 +1,24 @@
-import { z } from "zod"
+import { z } from 'zod'
+
+// const parseFileType = ['.md','.mdx','.markdown']
+const parseSurfix = null
 
 const baseSchema = z.object({
-	NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-	DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
+	NODE_ENV: z
+		.enum(['development', 'test', 'production'])
+		.default('development'),
+	DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
 	GITHUB_OWNER: z.string().optional(),
 	GITHUB_REPO: z.string().optional(),
 	GITHUB_TOKEN: z.string().optional(),
-	GITHUB_DEFAULT_BRANCH: z.string().default("main"),
+	GITHUB_DEFAULT_BRANCH: z.string().default('main'),
 	WEBHOOK_SECRET: z.string().optional(),
 	SYNC_CRON_TOKEN: z.string().optional(),
 	CLERK_PUBLISHABLE_KEY: z.string().optional(),
 	CLERK_SECRET_KEY: z.string().optional(),
+	PARSE_FILES_END_WITH: z
+		.string()
+		.default(parseSurfix ? `.${parseSurfix}.md` : '.md'),
 })
 
 const parsed = baseSchema.safeParse({
@@ -24,16 +32,17 @@ const parsed = baseSchema.safeParse({
 	SYNC_CRON_TOKEN: process.env.SYNC_CRON_TOKEN,
 	CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY,
 	CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
+	PARSE_FILES_END_WITH: process.env.PARSE_FILES_END_WITH
 })
 
 if (!parsed.success) {
 	const errors = parsed.error.issues
 	const combined = errors
 		.map((issue) => {
-			const path = issue.path.length ? issue.path.join(".") : "(root)"
+			const path = issue.path.length ? issue.path.join('.') : '(root)'
 			return `${path}: ${issue.message}`
 		})
-		.join("; ")
+		.join('; ')
 	throw new Error(`Invalid environment variables: ${combined}`)
 }
 

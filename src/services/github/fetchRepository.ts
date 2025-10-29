@@ -22,7 +22,7 @@ export type RepositorySnapshot = {
 }
 
 const DEFAULT_FILE_FILTER = (path: string) =>
-	path.endsWith('.md') || path.endsWith('.mdx') || path.endsWith('.markdown')
+	path.endsWith(env.PARSE_FILES_END_WITH)
 
 export const fetchRepositorySnapshot = async ({
 	owner = env.GITHUB_OWNER,

@@ -11,6 +11,7 @@
 		"db:migrate": "bunx drizzle-kit migrate",
 		"db:push": "bunx drizzle-kit push",
 		"db:studio": "bunx drizzle-kit studio",
+		"db:reset": "bun run scripts/reset.ts",
 		"db:seed": "bun run scripts/seed.ts",
 		"test": "vitest"
 	},

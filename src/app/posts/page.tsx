@@ -1,11 +1,11 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { listPublishedPosts } from "@/services/posts"
 import { formatDate } from "@/lib/date"
+import { listPublishedPosts } from "@/services/posts"
 
 type PostsPageProps = {
 	searchParams: Promise<Record<string, string | string[] | undefined>>
@@ -57,7 +57,8 @@ export default async function PostsPage({ searchParams }: PostsPageProps) {
 					<Card key={post.id} className='border-l-4 border-l-primary/60'>
 						<CardHeader className='space-y-2'>
 							<CardDescription className='text-xs text-muted-foreground'>
-								{formatDate(post.publishedAt ?? post.createdAt)} · {post.authorName}
+								{formatDate(post.publishedAt ?? post.createdAt)}
+								{post.authorName ? ` · ${post.authorName}` : null}
 							</CardDescription>
 							<CardTitle className='text-2xl'>
 								<Link href={`/posts/${post.slug}`} className='hover:underline'>

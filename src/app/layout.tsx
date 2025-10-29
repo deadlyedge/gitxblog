@@ -3,7 +3,7 @@ import { LXGW_WenKai_TC } from "next/font/google"
 import { ClerkProvider } from "@clerk/nextjs"
 import "./globals.css"
 import { Navbar } from "@/components/navbar"
-import { EnsureClerkUser } from "./ensure-user"
+// import { EnsureClerkUser } from "./ensure-user"
 
 export const metadata: Metadata = {
 	title: {
@@ -35,7 +35,7 @@ export default function RootLayout({
 			<ClerkProvider>
 				<body className={`${wenkai.className} antialiased overflow-x-hidden`}>
 					<main className='mx-auto w-full md:w-3/4'>
-						<EnsureClerkUser />
+						{/* <EnsureClerkUser /> */}
 						<Navbar />
 						{children}
 					</main>

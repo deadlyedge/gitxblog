@@ -1,4 +1,9 @@
-import { and, eq, inArray, notInArray, sql } from 'drizzle-orm'
+/**
+ * Orchestrates GitHub → database synchronization. Responsible for fetching
+ * repository snapshots, running extraction rules, upserting posts, and marking
+ * stale entries as archived.
+ */
+import { and, eq, inArray, sql } from 'drizzle-orm'
 
 import { db } from '@/db/client'
 import type { Database } from '@/db/client'
@@ -270,7 +275,9 @@ export const syncRepository = async ({
 		branch: resolvedBranch,
 		token: resolvedToken,
 	})
-	const normalizedPosts = snapshot.files.map((file) => parseMarkdownFile(file, { owner: snapshot.owner, repo: snapshot.repo }))
+	const normalizedPosts = snapshot.files.map((file) =>
+		parseMarkdownFile(file, { owner: snapshot.owner, repo: snapshot.repo }),
+	)
 
 	const [logRecord] = await db
 		.insert(syncLog)
@@ -382,26 +389,26 @@ export const syncRepository = async ({
 
 			let postsArchived = 0
 			if (normalizedPosts.length > 0) {
-				const slugs = normalizedPosts.map((p) => p.slug).filter(Boolean)
-				if (slugs.length > 0) {
-					console.debug('[syncRepository] archiving posts not in', slugs.map((slug) => ({ slug, type: typeof slug })))
-					// execute the update and read rowCount from the result
-					try {
-						const res = await tx
-							.update(posts)
-							.set({ status: 'archived' })
-							.where(
-								and(eq(posts.source, 'github'), notInArray(posts.slug, slugs))
-							)
-							.execute()
-						postsArchived =
-							(res as unknown as { rowCount?: number })?.rowCount ?? 0
-					} catch (archiveError) {
-						console.error('[syncRepository] Failed to archive stale posts', {
-							slugs,
-							archiveError,
-						})
-					}
+				const newSlugSet = new Set(
+					normalizedPosts.map((post) => String(post.slug)).filter(Boolean),
+				)
+
+				const existing = await tx
+					.select({ slug: posts.slug })
+					.from(posts)
+					.where(eq(posts.source, 'github'))
+
+				const staleSlugs = existing
+					.map((row) => row.slug)
+					.filter((slug): slug is string => Boolean(slug) && !newSlugSet.has(slug))
+
+				if (staleSlugs.length > 0) {
+					await tx
+						.update(posts)
+						.set({ status: 'archived' })
+						.where(and(eq(posts.source, 'github'), inArray(posts.slug, staleSlugs)))
+
+					postsArchived = staleSlugs.length
 				}
 			}
 
@@ -446,3 +453,4 @@ export const syncRepository = async ({
 		throw error
 	}
 }
+

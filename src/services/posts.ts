@@ -1,3 +1,7 @@
+/**
+ * Post read-model helpers. These queries return pre-aggregated JSON blobs to
+ * keep React server components lean while avoiding N+1 round trips.
+ */
 import { cache } from "react"
 
 import { db } from "@/db/client"
@@ -19,13 +23,17 @@ type ListOptions = {
 	category?: string | null
 }
 
-type PostListItem = Awaited<ReturnType<typeof listPublishedPosts>>["data"][number]
-
 type SearchOptions = {
 	query: string
 	page?: number
 	limit?: number
 }
+
+type JsonTag = { slug: string; label: string }
+type JsonCategory = { slug: string; label: string }
+type JsonAttachment = { id: string; label: string; url: string; type: string }
+type JsonAuthorPreview = { name: string | null; slug: string | null }
+type JsonAuthorDetail = { id: string | null; name: string | null; slug: string | null; avatarUrl: string | null }
 
 const buildFilters = (tag?: string | null, category?: string | null) => {
 	const filters: SQL[] = [eq(posts.status, "published")]
@@ -60,11 +68,59 @@ const buildFilters = (tag?: string | null, category?: string | null) => {
 	}
 }
 
+const selectTagArray = sql<JsonTag[]>`
+	coalesce(
+		(
+			select jsonb_agg(
+				jsonb_build_object('slug', ${tags.slug}, 'label', ${tags.label})
+			)
+			from ${postTags} pt
+			inner join ${tags} on ${tags.id} = pt.tag_id
+			where pt.post_id = ${posts.id}
+		),
+		'[]'::jsonb
+	)
+`
+
+const selectCategoryArray = sql<JsonCategory[]>`
+	coalesce(
+		(
+			select jsonb_agg(
+				jsonb_build_object('slug', ${categories.slug}, 'label', ${categories.label})
+			)
+			from ${postCategories} pc
+			inner join ${categories} on ${categories.id} = pc.category_id
+			where pc.post_id = ${posts.id}
+		),
+		'[]'::jsonb
+	)
+`
+
+const selectAttachmentArray = sql<JsonAttachment[]>`
+	coalesce(
+		(
+			select jsonb_agg(
+				jsonb_build_object(
+					'id', ${postAttachments.id},
+					'label', ${postAttachments.label},
+					'url', ${postAttachments.url},
+					'type', ${postAttachments.type}
+				)
+			)
+			from ${postAttachments}
+			where ${postAttachments.postId} = ${posts.id}
+		),
+		'[]'::jsonb
+	)
+`
+
 export const listPublishedPosts = cache(async (options: ListOptions = {}) => {
 	const page = Math.max(1, options.page ?? 1)
 	const limit = Math.min(Math.max(1, options.limit ?? 10), 50)
 	const offset = (page - 1) * limit
 	const whereClause = buildFilters(options.tag, options.category)
+
+	const authorPreview = sql<JsonAuthorPreview>`jsonb_build_object('name', ${authors.displayName}, 'slug', ${authors.slug})`
 
 	const [rows, totalResult] = await Promise.all([
 		db
@@ -75,13 +131,14 @@ export const listPublishedPosts = cache(async (options: ListOptions = {}) => {
 				summary: posts.summary,
 				publishedAt: posts.publishedAt,
 				createdAt: posts.createdAt,
-				authorName: authors.displayName,
-				authorSlug: authors.slug,
+				author: authorPreview,
+				tags: selectTagArray,
+				categories: selectCategoryArray,
 			})
 			.from(posts)
 			.leftJoin(authors, eq(posts.authorId, authors.id))
 			.where(whereClause ?? undefined)
-			.orderBy(sql`COALESCE(${posts.publishedAt}, ${posts.createdAt}) DESC`)
+			.orderBy(sql`coalesce(${posts.publishedAt}, ${posts.createdAt}) desc`)
 			.limit(limit)
 			.offset(offset),
 		db
@@ -91,52 +148,20 @@ export const listPublishedPosts = cache(async (options: ListOptions = {}) => {
 			.limit(1),
 	])
 
-	const postIds = rows.map((row) => row.id)
-
-	const [tagsRows, categoriesRows] = await Promise.all([
-		postIds.length > 0
-			? db
-					.select({
-						postId: postTags.postId,
-						slug: tags.slug,
-						label: tags.label,
-					})
-					.from(postTags)
-					.innerJoin(tags, eq(postTags.tagId, tags.id))
-					.where(inArray(postTags.postId, postIds))
-			: [],
-		postIds.length > 0
-			? db
-					.select({
-						postId: postCategories.postId,
-						slug: categories.slug,
-						label: categories.label,
-					})
-					.from(postCategories)
-					.innerJoin(categories, eq(postCategories.categoryId, categories.id))
-					.where(inArray(postCategories.postId, postIds))
-			: [],
-	])
-
-	const tagsMap = tagsRows.reduce<Record<string, Array<{ slug: string; label: string }>>>((acc, row) => {
-		acc[row.postId] = acc[row.postId] ?? []
-		acc[row.postId].push({ slug: row.slug, label: row.label })
-		return acc
-	}, {})
-
-	const categoriesMap = categoriesRows.reduce<Record<string, Array<{ slug: string; label: string }>>>((acc, row) => {
-		acc[row.postId] = acc[row.postId] ?? []
-		acc[row.postId].push({ slug: row.slug, label: row.label })
-		return acc
-	}, {})
-
 	const total = totalResult[0]?.count ?? 0
 
 	return {
 		data: rows.map((row) => ({
-			...row,
-			tags: tagsMap[row.id] ?? [],
-			categories: categoriesMap[row.id] ?? [],
+			id: row.id,
+			slug: row.slug,
+			title: row.title,
+			summary: row.summary,
+			publishedAt: row.publishedAt,
+			createdAt: row.createdAt,
+			authorName: row.author?.name ?? null,
+			authorSlug: row.author?.slug ?? null,
+			tags: row.tags ?? [],
+			categories: row.categories ?? [],
 		})),
 		meta: {
 			page,
@@ -147,7 +172,18 @@ export const listPublishedPosts = cache(async (options: ListOptions = {}) => {
 	}
 })
 
+export type PostListItem = Awaited<ReturnType<typeof listPublishedPosts>>["data"][number]
+
 export const getPostBySlug = cache(async (slug: string) => {
+	const authorDetail = sql<JsonAuthorDetail>`
+		jsonb_build_object(
+			'id', ${authors.id},
+			'name', ${authors.displayName},
+			'slug', ${authors.slug},
+			'avatarUrl', ${authors.avatarUrl}
+		)
+	`
+
 	const [row] = await db
 		.select({
 			id: posts.id,
@@ -159,10 +195,10 @@ export const getPostBySlug = cache(async (slug: string) => {
 			ogImageUrl: posts.ogImageUrl,
 			publishedAt: posts.publishedAt,
 			createdAt: posts.createdAt,
-			authorId: authors.id,
-			authorName: authors.displayName,
-			authorSlug: authors.slug,
-			authorAvatarUrl: authors.avatarUrl,
+			author: authorDetail,
+			tags: selectTagArray,
+			categories: selectCategoryArray,
+			attachments: selectAttachmentArray,
 		})
 		.from(posts)
 		.leftJoin(authors, eq(posts.authorId, authors.id))
@@ -171,39 +207,12 @@ export const getPostBySlug = cache(async (slug: string) => {
 
 	if (!row) return null
 
-	const [tagsRows, categoriesRows, attachmentsRows] = await Promise.all([
-		db
-			.select({
-				slug: tags.slug,
-				label: tags.label,
-			})
-			.from(postTags)
-			.innerJoin(tags, eq(tags.id, postTags.tagId))
-			.where(eq(postTags.postId, row.id)),
-		db
-			.select({
-				slug: categories.slug,
-				label: categories.label,
-			})
-			.from(postCategories)
-			.innerJoin(categories, eq(categories.id, postCategories.categoryId))
-			.where(eq(postCategories.postId, row.id)),
-		db
-			.select({
-				id: postAttachments.id,
-				label: postAttachments.label,
-				url: postAttachments.url,
-				type: postAttachments.type,
-			})
-			.from(postAttachments)
-			.where(eq(postAttachments.postId, row.id)),
-	])
-
 	return {
 		...row,
-		tags: tagsRows,
-		categories: categoriesRows,
-		attachments: attachmentsRows,
+		author: row.author ?? null,
+		tags: row.tags ?? [],
+		categories: row.categories ?? [],
+		attachments: row.attachments ?? [],
 	}
 })
 
@@ -212,7 +221,6 @@ export const listRelatedPosts = cache(async (slug: string, limit = 3) => {
 	if (!post) return []
 
 	const tagSlugs = post.tags.map((tag) => tag.slug)
-
 	if (tagSlugs.length === 0) return []
 
 	const relatedIds = await db
@@ -240,7 +248,7 @@ export const listRelatedPosts = cache(async (slug: string, limit = 3) => {
 		})
 		.from(posts)
 		.where(and(eq(posts.status, "published"), inArray(posts.id, ids)))
-		.orderBy(sql`COALESCE(${posts.publishedAt}, ${posts.createdAt}) DESC`)
+		.orderBy(sql`coalesce(${posts.publishedAt}, ${posts.createdAt}) desc`)
 		.limit(limit)
 })
 
@@ -283,4 +291,3 @@ export const searchPosts = cache(async ({ query, page = 1, limit = 10 }: SearchO
 	}
 })
 
-export type { PostListItem }

@@ -1,3 +1,8 @@
+/**
+ * GitHub ingestion rules that map raw markdown files into the normalized
+ * application shape. All heuristics for authors, summaries, tags, and
+ * categories live here so they can be reviewed and tweaked in isolation.
+ */
 import matter from "gray-matter"
 
 import { ensureSlug } from "@/lib/slug"
@@ -220,3 +225,4 @@ export const applyExtractionRules = (
 		rawFrontmatter: normalizedFrontmatter.raw,
 	}
 }
+
