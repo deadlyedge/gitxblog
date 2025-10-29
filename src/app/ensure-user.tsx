@@ -1,9 +1,9 @@
-import { auth } from "@clerk/nextjs/server"
+import { auth } from '@clerk/nextjs/server'
 
-import { ensureUserRecord } from "@/services/userSync"
+import { ensureUserRecord } from '@/services/userSync'
 
 export const EnsureClerkUser = async () => {
-	const { userId } = auth()
+	const { userId } = await auth()
 	if (userId) {
 		await ensureUserRecord(userId)
 	}

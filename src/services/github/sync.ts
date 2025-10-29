@@ -1,7 +1,7 @@
-import { and, eq, inArray, notInArray, sql } from "drizzle-orm"
+import { and, eq, inArray, notInArray, sql } from 'drizzle-orm'
 
-import { db } from "@/db/client"
-import type { Database } from "@/db/client"
+import { db } from '@/db/client'
+import type { Database } from '@/db/client'
 import {
 	attachmentTypeEnum,
 	authors,
@@ -12,27 +12,32 @@ import {
 	posts,
 	syncLog,
 	tags,
-} from "@/db/schema"
-import { env } from "@/config/env"
+} from '@/db/schema'
+import { env } from '@/config/env'
 
-import { fetchRepositorySnapshot } from "./fetchRepository"
-import { getContentSourceSettings } from "../settings"
-import { parseMarkdownFile } from "./markdown"
-import type { NormalizedPost, SyncResult } from "./types"
+import { fetchRepositorySnapshot } from './fetchRepository'
+import { getContentSourceSettings } from '../settings'
+import { parseMarkdownFile } from './markdown'
+import type { NormalizedPost, SyncResult } from './types'
 
 type SyncOptions = {
 	owner?: string
 	repo?: string
 	branch?: string
 	token?: string
-	trigger?: "webhook" | "cron" | "manual" | "setup"
+	trigger?: 'webhook' | 'cron' | 'manual' | 'setup'
 	eventId?: string
 }
 
-type TransactionClientFn = Parameters<Database["transaction"]>[0]
-type TransactionClient = TransactionClientFn extends (tx: infer T) => unknown ? T : Database
+type TransactionClientFn = Parameters<Database['transaction']>[0]
+type TransactionClient = TransactionClientFn extends (tx: infer T) => unknown
+	? T
+	: Database
 
-const upsertAuthors = async (tx: TransactionClient, postsToSync: NormalizedPost[]): Promise<Map<string, string>> => {
+const upsertAuthors = async (
+	tx: TransactionClient,
+	postsToSync: NormalizedPost[]
+): Promise<Map<string, string>> => {
 	const uniqueAuthors = new Map(
 		postsToSync.map((post) => [
 			post.author.slug,
@@ -43,7 +48,7 @@ const upsertAuthors = async (tx: TransactionClient, postsToSync: NormalizedPost[
 				avatarUrl: post.author.avatarUrl,
 				githubUsername: post.author.githubUsername,
 			},
-		]),
+		])
 	)
 
 	const values = Array.from(uniqueAuthors.values())
@@ -68,14 +73,25 @@ const upsertAuthors = async (tx: TransactionClient, postsToSync: NormalizedPost[
 	const records = await tx
 		.select({ id: authors.id, slug: authors.slug })
 		.from(authors)
-		.where(inArray(authors.slug, values.map((a) => a.slug)))
+		.where(
+			inArray(
+				authors.slug,
+				values.map((a) => a.slug)
+			)
+		)
 
 	return new Map(
-		(records as Array<{ id: string; slug: string }>).map((record) => [record.slug, record.id]),
+		(records as Array<{ id: string; slug: string }>).map((record) => [
+			record.slug,
+			record.id,
+		])
 	)
 }
 
-const upsertTags = async (tx: TransactionClient, items: Array<{ slug: string; label: string }>): Promise<Map<string, string>> => {
+const upsertTags = async (
+	tx: TransactionClient,
+	items: Array<{ slug: string; label: string }>
+): Promise<Map<string, string>> => {
 	if (items.length === 0) return new Map<string, string>()
 
 	await tx
@@ -92,14 +108,25 @@ const upsertTags = async (tx: TransactionClient, items: Array<{ slug: string; la
 	const rows = await tx
 		.select({ id: tags.id, slug: tags.slug })
 		.from(tags)
-		.where(inArray(tags.slug, items.map((item) => item.slug)))
+		.where(
+			inArray(
+				tags.slug,
+				items.map((item) => item.slug)
+			)
+		)
 
 	return new Map(
-		(rows as Array<{ id: string; slug: string }>).map((row) => [row.slug, row.id]),
+		(rows as Array<{ id: string; slug: string }>).map((row) => [
+			row.slug,
+			row.id,
+		])
 	)
 }
 
-const upsertCategories = async (tx: TransactionClient, items: Array<{ slug: string; label: string }>): Promise<Map<string, string>> => {
+const upsertCategories = async (
+	tx: TransactionClient,
+	items: Array<{ slug: string; label: string }>
+): Promise<Map<string, string>> => {
 	if (items.length === 0) return new Map<string, string>()
 
 	await tx
@@ -116,16 +143,24 @@ const upsertCategories = async (tx: TransactionClient, items: Array<{ slug: stri
 	const rows = await tx
 		.select({ id: categories.id, slug: categories.slug })
 		.from(categories)
-		.where(inArray(categories.slug, items.map((item) => item.slug)))
+		.where(
+			inArray(
+				categories.slug,
+				items.map((item) => item.slug)
+			)
+		)
 
 	return new Map(
-		(rows as Array<{ id: string; slug: string }>).map((row) => [row.slug, row.id]),
+		(rows as Array<{ id: string; slug: string }>).map((row) => [
+			row.slug,
+			row.id,
+		])
 	)
 }
 
 const updateSearchVector = async (tx: TransactionClient, postId: string) => {
 	await tx.execute(
-		sql`update ${posts} set search_vector = to_tsvector('english', coalesce(title, '') || ' ' || coalesce(summary, '') || ' ' || coalesce(content, '')) where id = ${postId}`,
+		sql`update ${posts} set search_vector = to_tsvector('english', coalesce(title, '') || ' ' || coalesce(summary, '') || ' ' || coalesce(content, '')) where id = ${postId}`
 	)
 }
 
@@ -134,7 +169,7 @@ const syncPostRelations = async (
 	postId: string,
 	tagMap: Map<string, string>,
 	categoryMap: Map<string, string>,
-	post: NormalizedPost,
+	post: NormalizedPost
 ) => {
 	await tx.delete(postTags).where(eq(postTags.postId, postId))
 	await tx.delete(postCategories).where(eq(postCategories.postId, postId))
@@ -151,7 +186,9 @@ const syncPostRelations = async (
 						tagId,
 					}
 				})
-				.filter((value): value is { postId: string; tagId: string } => value !== null),
+				.filter(
+					(value): value is { postId: string; tagId: string } => value !== null
+				)
 		)
 	}
 
@@ -166,7 +203,10 @@ const syncPostRelations = async (
 						categoryId,
 					}
 				})
-				.filter((value): value is { postId: string; categoryId: string } => value !== null),
+				.filter(
+					(value): value is { postId: string; categoryId: string } =>
+						value !== null
+				)
 		)
 	}
 
@@ -178,8 +218,8 @@ const syncPostRelations = async (
 				url: attachment.url,
 				type: attachmentTypeEnum.enumValues.includes(attachment.type)
 					? attachment.type
-					: "link",
-			})),
+					: 'link',
+			}))
 		)
 	}
 }
@@ -189,7 +229,7 @@ export const syncRepository = async ({
 	repo,
 	branch,
 	token,
-	trigger = "manual",
+	trigger = 'manual',
 	eventId,
 }: SyncOptions = {}): Promise<SyncResult> => {
 	let resolvedOwner = owner ?? env.GITHUB_OWNER
@@ -202,13 +242,14 @@ export const syncRepository = async ({
 		if (stored) {
 			resolvedOwner = resolvedOwner ?? stored.owner
 			resolvedRepo = resolvedRepo ?? stored.repo
-			resolvedBranch = resolvedBranch ?? stored.branch ?? env.GITHUB_DEFAULT_BRANCH
+			resolvedBranch =
+				resolvedBranch ?? stored.branch ?? env.GITHUB_DEFAULT_BRANCH
 			resolvedToken = resolvedToken ?? stored.token
 		}
 	}
 
 	if (!resolvedOwner || !resolvedRepo) {
-		throw new Error("GitHub repository details are not configured")
+		throw new Error('GitHub repository details are not configured')
 	}
 
 	const snapshot = await fetchRepositorySnapshot({
@@ -226,7 +267,7 @@ export const syncRepository = async ({
 			eventId,
 			repoOwner: resolvedOwner,
 			repoName: resolvedRepo,
-			status: "pending",
+			status: 'pending',
 			details: {
 				branch: snapshot.branch,
 				commitSha: snapshot.commitSha,
@@ -235,20 +276,28 @@ export const syncRepository = async ({
 		})
 		.returning({ id: syncLog.id })
 
-		try {
+	try {
 		const result = await db.transaction(async (tx) => {
 			const authorMap = await upsertAuthors(tx, normalizedPosts)
 
 			const uniqueTags = new Map<string, { slug: string; label: string }>()
-			const uniqueCategories = new Map<string, { slug: string; label: string }>()
+			const uniqueCategories = new Map<
+				string,
+				{ slug: string; label: string }
+			>()
 
 			for (const post of normalizedPosts) {
 				post.tags.forEach((tag) => uniqueTags.set(tag.slug, tag))
-				post.categories.forEach((category) => uniqueCategories.set(category.slug, category))
+				post.categories.forEach((category) =>
+					uniqueCategories.set(category.slug, category)
+				)
 			}
 
 			const tagMap = await upsertTags(tx, Array.from(uniqueTags.values()))
-			const categoryMap = await upsertCategories(tx, Array.from(uniqueCategories.values()))
+			const categoryMap = await upsertCategories(
+				tx,
+				Array.from(uniqueCategories.values())
+			)
 
 			let postsSynced = 0
 
@@ -267,7 +316,7 @@ export const syncRepository = async ({
 						rawFrontmatter: post.rawFrontmatter,
 						ogImageUrl: post.ogImageUrl,
 						status: post.status,
-						source: "github",
+						source: 'github',
 						sourcePath: post.sourcePath,
 						sourceSha: post.sourceSha,
 						publishedAt: post.publishedAt,
@@ -300,20 +349,18 @@ export const syncRepository = async ({
 			let postsArchived = 0
 			if (normalizedPosts.length > 0) {
 				const slugs = normalizedPosts.map((post) => post.slug)
-					if (slugs.length > 0) {
-						// execute the update and read rowCount from the result
-						const res = await tx
-							.update(posts)
-							.set({ status: "archived" })
-							.where(
-								and(
-									eq(posts.source, "github"),
-									notInArray(posts.slug, slugs),
-								),
-							)
-							.execute()
-						postsArchived = (res as unknown as { rowCount?: number })?.rowCount ?? 0
-					}
+				if (slugs.length > 0) {
+					// execute the update and read rowCount from the result
+					const res = await tx
+						.update(posts)
+						.set({ status: 'archived' })
+						.where(
+							and(eq(posts.source, 'github'), notInArray(posts.slug, slugs))
+						)
+						.execute()
+					postsArchived =
+						(res as unknown as { rowCount?: number })?.rowCount ?? 0
+				}
 			}
 
 			return {
@@ -328,7 +375,7 @@ export const syncRepository = async ({
 		await db
 			.update(syncLog)
 			.set({
-				status: "success",
+				status: 'success',
 				completedAt: new Date(),
 				details: {
 					branch: snapshot.branch,
@@ -346,9 +393,10 @@ export const syncRepository = async ({
 		await db
 			.update(syncLog)
 			.set({
-				status: "error",
+				status: 'error',
 				completedAt: new Date(),
-				errorMessage: error instanceof Error ? error.message : "Unknown sync error",
+				errorMessage:
+					error instanceof Error ? error.message : 'Unknown sync error',
 			})
 			.where(eq(syncLog.id, logRecord.id))
 

@@ -29,10 +29,10 @@ const normalizeFrontmatter = (data: Frontmatter) => {
 		summary: data.summary ?? data.description,
 		tags,
 		categories,
-		status: data.status === "published" ? "published" : "draft",
+		status: (data.status === "published" ? "published" : "draft") as "published" | "draft",
 		publishedAt: data.publishedAt ? new Date(data.publishedAt) : undefined,
 		author: {
-			slug: data.author?.slug ?? data.author?.github ?? data.author?.email ?? data.author?.name,
+			slug: data.author?.slug ?? data.author?.github ?? data.author?.email ?? data.author?.name ?? "unknown-author",
 			displayName: data.author?.name ?? data.author?.slug ?? "Unknown Author",
 			email: data.author?.email,
 			avatarUrl: data.author?.avatarUrl,
