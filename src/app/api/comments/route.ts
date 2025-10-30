@@ -58,7 +58,7 @@ export const POST = async (request: Request) => {
 			and(
 				eq(comments.userId, userId),
 				eq(comments.postId, postId),
-				sql`${comments.createdAt} > NOW() - INTERVAL '${RATE_LIMIT_WINDOW_SECONDS} seconds'`
+				sql`${comments.createdAt} > NOW() - make_interval(secs => ${RATE_LIMIT_WINDOW_SECONDS})`
 			)
 		)
 
