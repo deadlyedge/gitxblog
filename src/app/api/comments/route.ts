@@ -71,9 +71,12 @@ export const POST = async (request: Request) => {
 		)
 	}
 
-	await ensureUserRecord(userId)
+	const userRecord = await ensureUserRecord(userId)
+	const isAdmin = userRecord.role === 'admin'
 
 	const spamScore = computeAntiSpamScore(body)
+	const status = isAdmin ? 'approved' : 'pending'
+	const publishedAt = isAdmin ? new Date() : null
 
 	const [created] = await db
 		.insert(comments)
@@ -81,14 +84,16 @@ export const POST = async (request: Request) => {
 			postId,
 			userId,
 			body,
-			status: 'pending',
+			status,
 			antiSpamScore: spamScore,
 			rateLimitKey: `${userId}:${postId}`,
+			publishedAt,
 		})
 		.returning({
 			id: comments.id,
 			status: comments.status,
 			createdAt: comments.createdAt,
+			publishedAt: comments.publishedAt,
 		})
 
 	return NextResponse.json(
