@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CommentsSection } from '@/components/comments-section'
 import { formatDate } from '@/lib/date'
-import { markdownToHtml } from '@/lib/markdown'
+import { MarkdownRenderer } from '@/lib/markdown'
 import { getPostBySlug, listRelatedPosts } from '@/services/posts'
 
 type PostPageProps = {
@@ -54,7 +54,6 @@ export default async function PostPage({ params }: PostPageProps) {
 		notFound()
 	}
 
-	const html = await markdownToHtml(post.content ?? '')
 	const related = await listRelatedPosts(slug)
 
 	return (
@@ -82,10 +81,9 @@ export default async function PostPage({ params }: PostPageProps) {
 				</div>
 			</header>
 
-			<section
-				className="prose prose-neutral max-w-none dark:prose-invert"
-				dangerouslySetInnerHTML={{ __html: html }}
-			/>
+			<section className="prose prose-neutral max-w-none dark:prose-invert">
+				<MarkdownRenderer content={post.content ?? ''} />
+			</section>
 
 			{post.attachments.length > 0 && (
 				<section className="space-y-3 rounded-2xl border bg-muted/30 p-4">

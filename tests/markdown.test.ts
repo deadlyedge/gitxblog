@@ -1,5 +1,5 @@
 import { parseMarkdownFile } from "@/services/github/markdown"
-import { markdownToHtml } from "@/lib/markdown"
+import { markdownToHtml } from "@/lib/markdown-to-html"
 
 describe("markdown parser", () => {
 	const markdown = `---\ntitle: Test Post\nsummary: Sample summary\ntags:\n  - Next.js\n  - TypeScript\ncategories:\n  - Engineering\nauthor:\n  name: Jane Doe\n  email: jane@example.com\nstatus: published\npublishedAt: 2024-01-01\nattachments:\n  - label: Repo\n    url: https://github.com/example/repo\n---\n\n# Hello World\n\nThis is **markdown** content.`
